@@ -1,6 +1,3 @@
-import { Protocol as DenoStreamsProtocol } from "./protocol/deno_streams/mod.ts";
-import type { RedisReply, RedisValue } from "./protocol/shared/types.ts";
-import type { Command, Protocol } from "./protocol/shared/protocol.ts";
 import type { Backoff } from "./backoff.ts";
 import { exponentialBackoff } from "./backoff.ts";
 import { ErrorReplyError, isRetriableError } from "./errors.ts";
@@ -10,6 +7,10 @@ import {
   kUnstableReadReply,
   kUnstableWriteCommand,
 } from "./internal/symbols.ts";
+import { Protocol as DenoStreamsProtocol } from "./protocol/deno_streams/mod.ts";
+import type { Command, Protocol } from "./protocol/shared/protocol.ts";
+import type { RedisReply, RedisValue } from "./protocol/shared/types.ts";
+
 import { delay } from "./vendor/https/deno.land/std/async/delay.ts";
 
 export interface SendCommandOptions {
