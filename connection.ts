@@ -74,11 +74,8 @@ export interface RedisConnectionOptions {
 export const kEmptyRedisArgs: Array<RedisValue> = [];
 
 interface PendingCommand {
-  name: string;
-  args: RedisValue[];
-  resolve: (reply: RedisReply) => void;
+  execute: () => Promise<void>;
   reject: (error: unknown) => void;
-  returnUint8Arrays?: boolean;
 }
 
 export class RedisConnection implements Connection {
@@ -149,22 +146,31 @@ export class RedisConnection implements Connection {
     await this.sendCommand("SELECT", [db]);
   }
 
+  private enqueueCommand(
+    command: PendingCommand,
+  ) {
+    this.commandQueue.push(command);
+    if (this.commandQueue.length === 1) {
+      this.processCommandQueue();
+    }
+  }
+
   sendCommand(
     command: string,
     args?: Array<RedisValue>,
     options?: SendCommandOptions,
   ): Promise<RedisReply> {
     const { promise, resolve, reject } = Promise.withResolvers<RedisReply>();
-    this.commandQueue.push({
-      name: command,
-      args: args ?? kEmptyRedisArgs,
-      resolve,
-      reject,
-      returnUint8Arrays: options?.returnUint8Arrays,
-    });
-    if (this.commandQueue.length === 1) {
-      this.processCommandQueue();
-    }
+    const execute = async () => {
+      const reply = await this.#protocol.sendCommand(
+        command,
+        args ?? kEmptyRedisArgs,
+        options?.returnUint8Arrays,
+      );
+      resolve(reply);
+    };
+    this.enqueueCommand({ execute, reject });
+
     return promise;
   }
 
@@ -173,7 +179,15 @@ export class RedisConnection implements Connection {
   }
 
   [kUnstablePipeline](commands: Array<Command>) {
-    return this.#protocol.pipeline(commands);
+    const { promise, resolve, reject } = Promise.withResolvers<
+      (RedisReply | ErrorReplyError)[]
+    >();
+    const execute = async () => {
+      const reply = await this.#protocol.pipeline(commands);
+      resolve(reply);
+    };
+    this.enqueueCommand({ execute, reject });
+    return promise;
   }
 
   [kUnstableWriteCommand](command: Command): Promise<void> {
@@ -257,12 +271,7 @@ export class RedisConnection implements Connection {
     if (!command) return;
 
     try {
-      const reply = await this.#protocol.sendCommand(
-        command.name,
-        command.args,
-        command.returnUint8Arrays,
-      );
-      command.resolve(reply);
+      await command.execute();
     } catch (error) {
       if (
         !isRetriableError(error) ||
@@ -276,14 +285,7 @@ export class RedisConnection implements Connection {
         this.close();
         try {
           await this.connect();
-
-          const reply = await this.#protocol.sendCommand(
-            command.name,
-            command.args,
-            command.returnUint8Arrays,
-          );
-
-          return command.resolve(reply);
+          return command.execute();
         } catch { // TODO: use `AggregateError`?
           const backoff = this.backoff(i);
           await delay(backoff);
