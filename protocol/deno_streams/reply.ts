@@ -1,5 +1,6 @@
+import { EOFError, ErrorReplyError, InvalidStateError } from "../../errors.ts";
+import { decoder } from "../../internal/encoding.ts";
 import { BufReader } from "../../vendor/https/deno.land/std/io/buf_reader.ts";
-import type * as types from "../shared/types.ts";
 import {
   ArrayReplyCode,
   BulkReplyCode,
@@ -7,8 +8,7 @@ import {
   IntegerReplyCode,
   SimpleStringCode,
 } from "../shared/reply.ts";
-import { EOFError, ErrorReplyError, InvalidStateError } from "../../errors.ts";
-import { decoder } from "../../internal/encoding.ts";
+import type * as types from "../shared/types.ts";
 
 export async function readReply(
   reader: BufReader,
@@ -23,6 +23,7 @@ export async function readReply(
   if (code === ErrorReplyCode) {
     await tryReadErrorReply(reader);
   }
+  // console.log(`recv`, new TextDecoder().decode(res));
 
   switch (code) {
     case IntegerReplyCode:
@@ -72,6 +73,7 @@ async function readBulkReply(
 
   const dest = new Uint8Array(size + 2);
   await reader.readFull(dest);
+  // console.log(`recv`, new TextDecoder().decode(dest).replaceAll("\r\n", "⮐ "));
   const body = dest.subarray(0, dest.length - 2); // Strip CR and LF
   return returnUint8Arrays ? body : decoder.decode(body);
 }
@@ -137,6 +139,7 @@ async function readLine(reader: BufReader): Promise<Uint8Array> {
   }
 
   const { line } = result;
+  // console.log(`recv`, new TextDecoder().decode(line));
   return line;
 }
 

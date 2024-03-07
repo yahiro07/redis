@@ -1,10 +1,10 @@
+import { ErrorReplyError } from "../../errors.ts";
 import { BufReader } from "../../vendor/https/deno.land/std/io/buf_reader.ts";
 import { BufWriter } from "../../vendor/https/deno.land/std/io/buf_writer.ts";
-import { readReply } from "./reply.ts";
-import { ErrorReplyError } from "../../errors.ts";
-import type { RedisReply, RedisValue } from "../shared/types.ts";
 import { encodeCommand } from "../shared/command.ts";
 import type { Command } from "../shared/protocol.ts";
+import type { RedisReply, RedisValue } from "../shared/types.ts";
+import { readReply } from "./reply.ts";
 
 export async function writeCommand(
   writer: BufWriter,
@@ -12,6 +12,8 @@ export async function writeCommand(
   args: RedisValue[],
 ) {
   const request = encodeCommand(command, args);
+  // const logText = new TextDecoder().decode(request).replaceAll("\r\n", "⮐ ");
+  // console.log(`send`, logText);
   await writer.write(request);
 }
 
