@@ -146,9 +146,7 @@ export class RedisConnection implements Connection {
     await this.sendCommand("SELECT", [db]);
   }
 
-  private enqueueCommand(
-    command: PendingCommand,
-  ) {
+  private enqueueCommand(command: PendingCommand) {
     this.commandQueue.push(command);
     if (this.commandQueue.length === 1) {
       this.processCommandQueue();
@@ -177,9 +175,7 @@ export class RedisConnection implements Connection {
   }
 
   [kUnstablePipeline](commands: Array<Command>) {
-    const { promise, resolve, reject } = Promise.withResolvers<
-      RedisReply[]
-    >();
+    const { promise, resolve, reject } = Promise.withResolvers<RedisReply[]>();
     const execute = () => this.#protocol.pipeline(commands);
     this.enqueueCommand({ execute, resolve, reject } as PendingCommand);
     return promise;
@@ -197,6 +193,7 @@ export class RedisConnection implements Connection {
   }
 
   async #connect(retryCount: number) {
+    console.log(`#connect (${retryCount})`);
     try {
       const dialOpts: Deno.ConnectOptions = {
         hostname: this.hostname,
@@ -227,7 +224,7 @@ export class RedisConnection implements Connection {
       this.#enableHealthCheckIfNeeded();
     } catch (error) {
       if (error instanceof AuthenticationError) {
-        throw (error.cause ?? error);
+        throw error.cause ?? error;
       }
 
       const backoff = this.backoff(retryCount);
@@ -235,6 +232,7 @@ export class RedisConnection implements Connection {
       if (retryCount >= this.maxRetryCount) {
         throw error;
       }
+      console.log(`#connect backoff ${backoff}`);
       await delay(backoff);
       await this.#connect(retryCount);
     }
@@ -254,7 +252,8 @@ export class RedisConnection implements Connection {
     try {
       await this.sendCommand("PING");
       this._isConnected = true;
-    } catch (_error) { // TODO: Maybe we should log this error.
+    } catch (_error) {
+      // TODO: Maybe we should log this error.
       this.close();
       await this.connect();
       await this.sendCommand("PING");
@@ -269,22 +268,22 @@ export class RedisConnection implements Connection {
       const reply = await command.execute();
       command.resolve(reply);
     } catch (error) {
-      if (
-        !isRetriableError(error) ||
-        this.isManuallyClosedByUser()
-      ) {
+      if (!isRetriableError(error) || this.isManuallyClosedByUser()) {
         return command.reject(error);
       }
 
       for (let i = 0; i < this.maxRetryCount; i++) {
         // Try to reconnect to the server and retry the command
+        console.log(`pcq reconnect loop ${i}`);
         this.close();
         try {
           await this.connect();
           const reply = await command.execute();
           return command.resolve(reply);
-        } catch { // TODO: use `AggregateError`?
+        } catch {
+          // TODO: use `AggregateError`?
           const backoff = this.backoff(i);
+          console.log(`pcq reconnect loop backoff ${backoff}`);
           await delay(backoff);
         }
       }
