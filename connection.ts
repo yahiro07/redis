@@ -193,7 +193,7 @@ export class RedisConnection implements Connection {
   }
 
   async #connect(retryCount: number) {
-    console.log(`#connect (${retryCount})`);
+    console.log(`#connect start (${retryCount})`);
     try {
       const dialOpts: Deno.ConnectOptions = {
         hostname: this.hostname,
@@ -208,6 +208,7 @@ export class RedisConnection implements Connection {
         new DenoStreamsProtocol(conn);
       this._isClosed = false;
       this._isConnected = true;
+      console.log("#connect conn");
 
       try {
         if (this.options.password != null) {
@@ -222,7 +223,9 @@ export class RedisConnection implements Connection {
       }
 
       this.#enableHealthCheckIfNeeded();
+      console.log("#connect connected");
     } catch (error) {
+      console.log(`#connect error`, error);
       if (error instanceof AuthenticationError) {
         throw error.cause ?? error;
       }
@@ -268,6 +271,7 @@ export class RedisConnection implements Connection {
       const reply = await command.execute();
       command.resolve(reply);
     } catch (error) {
+      console.log(`pcq error`, error);
       if (!isRetriableError(error) || this.isManuallyClosedByUser()) {
         return command.reject(error);
       }
