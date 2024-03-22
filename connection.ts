@@ -212,15 +212,21 @@ export class RedisConnection implements Connection {
 
       try {
         if (this.options.password != null) {
+          console.log("#connect authenticate");
           await this.authenticate(this.options.username, this.options.password);
+          console.log("#connect authenticate done");
         }
         if (this.options.db) {
+          console.log("#connect selectDb");
           await this.selectDb(this.options.db);
+          console.log("#connect selectDb done");
         }
       } catch (error) {
+        console.log(`#connect authes error`, error);
         this.close();
         throw error;
       }
+      console.log("#connect conn2");
 
       this.#enableHealthCheckIfNeeded();
       console.log("#connect connected");
